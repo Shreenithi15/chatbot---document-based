@@ -1,16 +1,421 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document Chatbot</title>
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: #f8fafc;
+            color: #0f172a;
+            line-height: 1.5;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        header p {
+            font-size: 0.95rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        /* Card Section */
+        .card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .card-header {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Document Upload Zone */
+        .upload-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+            cursor: pointer;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .upload-text {
+            font-size: 0.9rem;
+            color: #475569;
+        }
+
+        .upload-hint {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            margin-top: 0.25rem;
+        }
+
+        .doc-badge {
+            margin-top: 0.75rem;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 0.6rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .doc-badge.active {
+            display: flex;
+        }
+
+        .btn-remove {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* Prompt Input */
+        textarea {
+            width: 100%;
+            min-height: 90px;
+            padding: 0.85rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #0f172a;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-submit {
+            margin-top: 0.75rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.7rem 1.4rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-submit:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        /* Results Feed */
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .question-item {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #2563eb;
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+
+        .question-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .answer-text {
+            font-size: 0.9rem;
+            color: #334155;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            background: #f8fafc;
+            padding: 0.75rem;
+            border-radius: 6px;
+        }
+
+        .context-toggle {
+            margin-top: 0.5rem;
+            font-size: 0.78rem;
+            color: #2563eb;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .context-box {
+            display: none;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #475569;
+            background: #f1f5f9;
+            padding: 0.6rem;
+            border-radius: 6px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+        .context-box.show {
+            display: block;
+        }
+
+        .empty-text {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            padding: 1rem 0;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: #1e293b;
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .toast.show {
+            display: block;
+        }
+    </style>
 </head>
 <body>
 
-    <h1>📄 Document Chatbot</h1>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>📄 Document Chatbot</h1>
+            <p>Upload any document and ask single or multiple questions at once.</p>
+        </header>
 
-    <form action="/upload" method="POST" enctype="multipart/form-data">
-        <input type="file" name="document" accept=".pdf">
-        <button type="submit">Upload PDF</button>
-    </form>
+        <!-- 1. Document Upload -->
+        <div class="card">
+            <div class="card-header">1. Upload Document</div>
+            <div class="upload-area" onclick="document.getElementById('file-input').click()">
+                <div class="upload-text"><strong>Click to select a document</strong> or drag and drop here</div>
+                <div class="upload-hint">Supports PDF, Word (.docx), Text (.txt), PowerPoint (.pptx), CSV, etc.</div>
+                <input type="file" id="file-input" style="display: none;" onchange="uploadFile(this.files)">
+            </div>
 
+            <div class="doc-badge" id="doc-badge">
+                <span id="doc-name-text">📄 document.pdf (Ready)</span>
+                <button class="btn-remove" onclick="clearDoc()">Remove</button>
+            </div>
+        </div>
+
+        <!-- 2. Question Input -->
+        <div class="card">
+            <div class="card-header">2. Ask Your Questions</div>
+            <textarea id="prompt-input" placeholder="Type your prompt or ask multiple questions (e.g. 'What is the document about? What are the key features and benefits?')"></textarea>
+            <button id="btn-submit" class="btn-submit" onclick="sendPrompt()">Ask Chatbot</button>
+        </div>
+
+        <!-- 3. Answers List -->
+        <div class="card">
+            <div class="card-header">3. Answers</div>
+            <div id="results-feed" class="results-list">
+                <div class="empty-text">Your questions and answers will appear here.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', checkStatus);
+
+        async function checkStatus() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                if (data.has_document) {
+                    showBadge(data.filename, data.total_chunks);
+                }
+            } catch (e) {}
+        }
+
+        function showBadge(name, chunks) {
+            const badge = document.getElementById('doc-badge');
+            document.getElementById('doc-name-text').textContent = `📄 ${name} (${chunks} text chunks indexed)`;
+            badge.classList.add('active');
+        }
+
+        function hideBadge() {
+            document.getElementById('doc-badge').classList.remove('active');
+        }
+
+        async function uploadFile(files) {
+            if (!files || !files[0]) return;
+            const file = files[0];
+            const formData = new FormData();
+            formData.append('document', file);
+
+            showToast(`Uploading ${file.name}...`);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showBadge(data.filename, data.total_chunks);
+                    showToast("Document indexed successfully!");
+                } else {
+                    showToast(data.message || "Upload failed");
+                }
+            } catch (e) {
+                showToast("Error uploading file.");
+            }
+        }
+
+        async function clearDoc() {
+            await fetch('/clear', { method: 'POST' });
+            hideBadge();
+            showToast("Document removed.");
+        }
+
+        async function sendPrompt() {
+            const input = document.getElementById('prompt-input');
+            const prompt = input.value.trim();
+            if (!prompt) return showToast("Please enter a question.");
+
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.textContent = "Processing...";
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: prompt })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    renderAnswers(data.data.results);
+                } else {
+                    showToast(data.message || "Failed to process.");
+                }
+            } catch (e) {
+                showToast("Error getting answer.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Ask Chatbot";
+            }
+        }
+
+        function renderAnswers(results) {
+            const feed = document.getElementById('results-feed');
+            if (!results || results.length === 0) {
+                feed.innerHTML = '<div class="empty-text">No questions detected in prompt.</div>';
+                return;
+            }
+
+            let html = '';
+            results.forEach(item => {
+                html += `
+                    <div class="question-item">
+                        <div class="question-title">Q${item.id}: ${escapeHtml(item.question)}</div>
+                        <div class="answer-text">${escapeHtml(item.answer)}</div>
+                        ${item.context ? `
+                            <button class="context-toggle" onclick="toggleCtx(${item.id})">Show Document Context</button>
+                            <div class="context-box" id="ctx-${item.id}">${escapeHtml(item.context)}</div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            feed.innerHTML = html;
+        }
+
+        function toggleCtx(id) {
+            const el = document.getElementById(`ctx-${id}`);
+            if (el) el.classList.toggle('show');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
 </body>
 </html>
