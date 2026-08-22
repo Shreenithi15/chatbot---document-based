@@ -194,6 +194,38 @@ def extract_questions(user_input):
         clean_input += '?'
     return [clean_input]
 
+def extract_mentioned_document(user_input, available_filenames):
+    """
+    Scans user input for @filename or filename matches.
+    Returns (cleaned_prompt, matched_filename).
+    """
+    if not available_filenames:
+        return user_input, None
+
+    # Check for explicit @mention pattern like @filename.pdf or @"filename.pdf" or @filename
+    pattern = r'@(?:"([^"]+)"|([^\s@]+))'
+    matches = re.findall(pattern, user_input)
+    
+    cleaned_input = user_input
+    for match in matches:
+        raw_target = match[0] or match[1]
+        raw_target_clean = raw_target.strip().lower()
+        
+        for fname in available_filenames:
+            fname_lower = fname.lower()
+            fname_base = os.path.splitext(fname_lower)[0]
+            if raw_target_clean == fname_lower or raw_target_clean == fname_base:
+                # Remove mention tag from prompt text for cleaner QA
+                cleaned_input = re.sub(rf'@(?:"{re.escape(raw_target)}"|{re.escape(raw_target)})', '', cleaned_input).strip()
+                return cleaned_input, fname
+                
+    # Fallback: check if prompt mentions exact filename without @
+    for fname in available_filenames:
+        if fname.lower() in user_input.lower():
+            return user_input, fname
+
+    return user_input, None
+
 def retrieve_context(question, model, index, chunks, k=2):
     if not index or not chunks:
         return ""
@@ -204,6 +236,51 @@ def retrieve_context(question, model, index, chunks, k=2):
     )
     retrieved_chunks = [chunks[i] for i in indices[0] if i < len(chunks)]
     return "\n\n".join(retrieved_chunks)
+
+def retrieve_multi_context(question, model, documents_store, target_filename=None, k=2):
+    """
+    Retrieves relevant chunks across single or multiple stored documents.
+    """
+    if not documents_store or not model:
+        return "", []
+
+    docs_to_search = []
+    if target_filename and target_filename in documents_store:
+        docs_to_search = [target_filename]
+    else:
+        docs_to_search = list(documents_store.keys())
+
+    all_retrieved = []  # list of (distance, chunk_text, filename)
+    question_embedding = model.encode([question])
+    q_vec = np.array(question_embedding, dtype="float32")
+
+    for fname in docs_to_search:
+        doc_data = documents_store[fname]
+        index = doc_data.get("index")
+        chunks = doc_data.get("chunks", [])
+        if not index or not chunks:
+            continue
+        
+        top_k = min(k, len(chunks))
+        distances, indices = index.search(q_vec, top_k)
+        for dist, idx in zip(distances[0], indices[0]):
+            if idx < len(chunks):
+                all_retrieved.append((float(dist), chunks[idx], fname))
+
+    # Sort all retrieved chunks by L2 distance (ascending = best match first)
+    all_retrieved.sort(key=lambda x: x[0])
+    top_results = all_retrieved[:k * 2] if len(docs_to_search) > 1 else all_retrieved[:k]
+
+    if not top_results:
+        return "", []
+
+    context_parts = []
+    sources = set()
+    for _, text, fname in top_results:
+        context_parts.append(f"[{fname}]\n{text}")
+        sources.add(fname)
+
+    return "\n\n".join(context_parts), list(sources)
 
 def answer_single_question(question, context=""):
     if context:
@@ -253,3 +330,50 @@ def process_multi_question(user_input, chunks=None, index=None):
         "question_count": len(results),
         "results": results
     }
+
+def process_multi_question_store(user_input, documents_store, selected_doc=None):
+    """
+    Processes prompt using documents_store dict.
+    Supports @mention targeting and fallback search.
+    """
+    available_files = list(documents_store.keys()) if documents_store else []
+    
+    target_doc = selected_doc if (selected_doc and selected_doc in documents_store) else None
+    
+    clean_input, mentioned_doc = extract_mentioned_document(user_input, available_files)
+    if mentioned_doc:
+        target_doc = mentioned_doc
+
+    query_text = clean_input if clean_input.strip() else user_input
+    extracted_qs = extract_questions(query_text)
+    
+    model = get_embedding_model() if documents_store else None
+
+    results = []
+    used_documents = set()
+
+    for i, q in enumerate(extracted_qs, 1):
+        context = ""
+        sources = []
+        if documents_store and model:
+            context, sources = retrieve_multi_context(q, model, documents_store, target_filename=target_doc, k=2)
+            used_documents.update(sources)
+
+        answer = answer_single_question(q, context=context)
+        results.append({
+            "id": i,
+            "question": q,
+            "answer": answer,
+            "context": context if context else None,
+            "sources": sources
+        })
+
+    return {
+        "original_input": user_input,
+        "processed_input": query_text,
+        "target_document": target_doc,
+        "question_count": len(results),
+        "results": results,
+        "documents_used": list(used_documents)
+    }
+
